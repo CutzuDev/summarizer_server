@@ -170,7 +170,7 @@ const server = Bun.serve({
       }
     }
 
-    // Add a new route for text-to-speech conversion
+    // Handle TTS route
     else if (url.pathname === "/api/tts" && method === "POST") {
       try {
         console.log(`[${new Date().toISOString()}] Processing TTS request`);
@@ -289,8 +289,8 @@ const server = Bun.serve({
       });
     }
 
-    // Handle root route - serve a simple HTML form
-    if (url.pathname === "/" && method === "GET") {
+    // Handle root route
+    else if (url.pathname === "/" && method === "GET") {
       console.log(`[${new Date().toISOString()}] Serving homepage`);
       return new Response(
         `
@@ -364,13 +364,16 @@ const server = Bun.serve({
       );
     }
 
-    console.log(
-      `[${new Date().toISOString()}] Not Found: ${method} ${url.pathname}`
-    );
-    return new Response("Not Found", {
-      status: 404,
-      headers: corsHeaders,
-    });
+    // Handle 404 for any other routes
+    else {
+      console.log(
+        `[${new Date().toISOString()}] Not Found: ${method} ${url.pathname}`
+      );
+      return new Response("Not Found", {
+        status: 404,
+        headers: corsHeaders,
+      });
+    }
   },
 });
 
