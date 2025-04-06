@@ -19,7 +19,7 @@ async function processPdf(pdfBuffer: ArrayBuffer) {
 async function getSummary(text: string) {
   const response = await ai.models.generateContent({
     model: "gemini-2.0-flash",
-    contents: `Summarize the following text by extracting the main points, author, and date. Format your response as simple HTML using only h1, ul, and li elements with these styles:
+    contents: `Summarize the following text by extracting the main points (MINIMUM 5), author, and date. Format your response as simple HTML using only h1, ul, and li elements with these styles:
 
 h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color:rgb(71, 72, 73); }
 ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; }
