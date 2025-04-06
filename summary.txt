@@ -1,0 +1,14 @@
+Dr. Angela Yu, lead instructor at The App Brewery, shares 12 rules to effectively learn to code based on her experience teaching over a million students. The rules include:
+
+1.  **The 20-Minute Rule:** Commit to just 20 minutes of coding daily to overcome inertia and build a habit.
+2.  **Code for a Purpose:** Work on projects you find interesting and useful to stay motivated.
+3.  **No "Perfect" Language:** Choose the language that best suits your goals.
+4.  **Understand What You're Writing:** Avoid blindly copying code; understand each line.
+5.  **It's Okay to Not Know:** Use resources like StackOverflow and Google; focus on asking good questions and understanding the answers.
+6.  **Be a Copycat:** Recreate existing apps or programs to learn and get help.
+7.  **Be Accountable:** Find a coding buddy or pay for courses to stay committed.
+8.  **Keep Learning:** Stay updated with new trends and technologies.
+9.  **Play Foosball:** Take breaks and step away when stuck on a bug.
+10. **Get a Mentor:** Seek guidance from experienced programmers.
+11. **Chunking:** Break down complex problems into smaller, manageable parts.
+12. **Break Someone Else's Code:** Analyze and deconstruct existing code to understand it.
