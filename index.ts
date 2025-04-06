@@ -1,5 +1,5 @@
 import { pdfToText } from "pdf-ts";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Readable } from "stream";
 import path from "path";
 
@@ -17,9 +17,21 @@ async function processPdf(pdfBuffer: ArrayBuffer) {
 }
 
 async function getSummary(text: string) {
-  const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: `Summarize the following text by extracting the main points (MINIMUM 5), author, and date. Format your response as simple HTML using only h1, ul, and li elements with these styles:
+  // Set up longer timeout for Gemini API call
+  const timeoutMs = 120000; // 2 minutes timeout
+  
+  try {
+    // Create a controller for aborting the fetch if needed
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    // Make the API call with the abort signal
+    console.log(`[${new Date().toISOString()}] Sending request to Gemini API`);
+    const startTime = Date.now();
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Summarize the following text by extracting the main points (MINIMUM 5), author, and date. Format your response as simple HTML using only h1, ul, and li elements with these styles:
 
 h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color:rgb(71, 72, 73); }
 ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; }
@@ -27,44 +39,62 @@ li { margin-bottom: 0.5rem; }
 
 Your response should look exactly like this (but with the actual content filled in):
 
-<h1 style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937;">Main Points</h1>
+<h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937;">Main Points</h1>
 <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem;">
   <li style="margin-bottom: 0.5rem;">Point 1</li>
   <li style="margin-bottom: 0.5rem;">Point 2</li>
 </ul>
 
-<h1 style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937;">Author</h1>
+<h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937;">Author</h1>
 <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem;">
   <li style="margin-bottom: 0.5rem;">Author name</li>
 </ul>
 
-<h1 style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937;">Date</h1>
+<h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937;">Date</h1>
 <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem;">
   <li style="margin-bottom: 0.5rem;">Publication date</li>
 </ul>
 
 TEXT TO SUMMARIZE: ${text}
 `,
-  });
-
-  // Clean the response to remove code block markers
-  let cleanedResponse = response.text || "No summary generated";
-
-  // Log the original response for debugging
-  console.log("[Original AI Response]:", response.text);
-
-  // If response contains code blocks, extract the content
-  if (cleanedResponse.includes("```")) {
-    const codeBlockMatch = cleanedResponse.match(/```(?:html)?([\s\S]*?)```/i);
-    if (codeBlockMatch && codeBlockMatch[1]) {
-      cleanedResponse = codeBlockMatch[1].trim();
+    });
+    
+    // Clear the timeout since the request completed
+    clearTimeout(timeoutId);
+    
+    // Calculate and log response time
+    const responseTime = Date.now() - startTime;
+    console.log(`[${new Date().toISOString()}] Gemini API responded in ${responseTime}ms`);
+    
+    // Clean the response to remove code block markers
+    let cleanedResponse = response.text || "No summary generated";
+    
+    // Log the original response for debugging
+    console.log("[Original AI Response]:", response.text);
+    
+    // If response contains code blocks, extract the content
+    if (cleanedResponse.includes("```")) {
+      const codeBlockMatch = cleanedResponse.match(/```(?:html)?([\s\S]*?)```/i);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        cleanedResponse = codeBlockMatch[1].trim();
+      }
     }
+    
+    // Log the cleaned response for debugging
+    console.log("[Cleaned Response]:", cleanedResponse);
+    
+    return cleanedResponse;
+  } catch (error: unknown) {
+    // Check if this was an abort error from our timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`[${new Date().toISOString()}] Gemini API request timed out after ${timeoutMs}ms`);
+      return `<h1 style="color: red;">Request Timeout</h1><p>The AI service took too long to respond. Please try again with a shorter text or try later.</p>`;
+    }
+    
+    // Handle other errors
+    console.error(`[${new Date().toISOString()}] Error generating summary:`, error);
+    return `<h1 style="color: red;">Error Generating Summary</h1><p>The AI service encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}</p>`;
   }
-
-  // Log the cleaned response for debugging
-  console.log("[Cleaned Response]:", cleanedResponse);
-
-  return cleanedResponse;
 }
 
 const server = Bun.serve({
