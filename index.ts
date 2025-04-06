@@ -1,6 +1,10 @@
 import { pdfToText } from "pdf-ts";
 import { GoogleGenAI } from "@google/genai";
 import { Readable } from "stream";
+import path from "path";
+
+// Using require for node-gtts to avoid TypeScript issues
+const gtts = require("node-gtts")("en");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.KEY,
@@ -17,7 +21,7 @@ async function getSummary(text: string) {
     model: "gemini-2.0-flash",
     contents: `Summarize the following text by extracting the main points, author, and date. Format your response as simple HTML using only h1, ul, and li elements with these styles:
 
-h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937; }
+h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color:rgb(71, 72, 73); }
 ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; }
 li { margin-bottom: 0.5rem; }
 
@@ -65,6 +69,11 @@ TEXT TO SUMMARIZE: ${text}
 
 const server = Bun.serve({
   port: 3000,
+  websocket: {
+    message() {}, // Empty handler
+    open() {},
+    close() {},
+  },
   async fetch(req) {
     const url = new URL(req.url);
     const method = req.method;
@@ -161,6 +170,125 @@ const server = Bun.serve({
       }
     }
 
+    // Add a new route for text-to-speech conversion
+    else if (url.pathname === "/api/tts" && method === "POST") {
+      try {
+        console.log(`[${new Date().toISOString()}] Processing TTS request`);
+
+        // Get request body as JSON
+        const requestData = await req.json();
+        const text = requestData.text;
+        const language = requestData.language || "en";
+
+        if (!text) {
+          console.log(
+            `[${new Date().toISOString()}] Error: No text provided for TTS`
+          );
+          return new Response("No text provided", {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+
+        console.log(
+          `[${new Date().toISOString()}] Generating speech for ${
+            text.length
+          } characters in ${language}`
+        );
+
+        // Create a Google TTS URL directly
+        const ttsEngine = require("node-gtts")(language);
+
+        // Use a custom approach to get audio data without writing to disk
+        return new Promise<Response>((resolve, reject) => {
+          try {
+            // Create a Buffer to hold the audio data
+            const chunks: Buffer[] = [];
+
+            // Get the audio stream from node-gtts
+            const audioStream = ttsEngine.stream(text);
+
+            // Handle data events
+            audioStream.on("data", (chunk: Buffer) => {
+              chunks.push(chunk);
+            });
+
+            // Handle end event
+            audioStream.on("end", () => {
+              // Combine all chunks into a single buffer
+              const audioBuffer = Buffer.concat(chunks);
+              console.log(
+                `[${new Date().toISOString()}] Generated ${
+                  audioBuffer.length
+                } bytes of audio data`
+              );
+
+              // Convert Node.js Buffer to Uint8Array for Bun
+              const audioData = new Uint8Array(audioBuffer);
+
+              // Return the audio data
+              resolve(
+                new Response(audioData, {
+                  headers: {
+                    "Content-Type": "audio/wav",
+                    "Content-Disposition": `attachment; filename="speech.wav"`,
+                    ...corsHeaders,
+                  },
+                })
+              );
+            });
+
+            // Handle error event
+            audioStream.on("error", (err: Error) => {
+              console.error(
+                `[${new Date().toISOString()}] Error streaming TTS audio:`,
+                err
+              );
+              reject(err);
+            });
+          } catch (streamError) {
+            console.error(
+              `[${new Date().toISOString()}] Stream setup error:`,
+              streamError
+            );
+            reject(streamError);
+          }
+        }).catch((error) => {
+          return new Response(
+            `Error generating speech: ${(error as Error).message}`,
+            {
+              status: 500,
+              headers: corsHeaders,
+            }
+          );
+        });
+      } catch (error) {
+        console.error(
+          `[${new Date().toISOString()}] Error in TTS processing:`,
+          error
+        );
+        return new Response(
+          `Error generating speech: ${(error as Error).message}`,
+          {
+            status: 500,
+            headers: corsHeaders,
+          }
+        );
+      }
+    }
+
+    // Handle test TTS page route
+    else if (url.pathname === "/test-tts" && method === "GET") {
+      console.log(`[${new Date().toISOString()}] Serving TTS test page`);
+      const ttsTestFile = await Bun.file("tts-test.html").text();
+      return new Response(ttsTestFile, {
+        headers: {
+          "Content-Type": "text/html",
+          ...corsHeaders,
+        },
+      });
+    }
+
     // Handle root route - serve a simple HTML form
     if (url.pathname === "/" && method === "GET") {
       console.log(`[${new Date().toISOString()}] Serving homepage`);
@@ -175,9 +303,12 @@ const server = Bun.serve({
             form { margin: 20px 0; }
             button { padding: 10px 15px; background: #4285f4; color: white; border: none; cursor: pointer; }
             #result { white-space: pre-wrap; border: 1px solid #ddd; padding: 15px; margin-top: 20px; }
-            h1 { font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937; }
+            h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1f2937; }
             ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; }
             li { margin-bottom: 0.5rem; }
+            .links { margin-top: 30px; }
+            .links a { display: inline-block; margin-right: 15px; color: #4285f4; text-decoration: none; }
+            .links a:hover { text-decoration: underline; }
           </style>
         </head>
         <body>
@@ -188,6 +319,10 @@ const server = Bun.serve({
           </form>
           <div id="loading" style="display: none;">Processing, please wait...</div>
           <div id="result"></div>
+          
+          <div class="links">
+            <a href="/test-tts" target="_blank">Text-to-Speech Tool</a>
+          </div>
           
           <script>
             document.getElementById('uploadForm').addEventListener('submit', async (e) => {

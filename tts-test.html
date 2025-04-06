@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text-to-Speech API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 5px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      margin-bottom: 15px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 15px;
+      background: #4285f4;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    select {
+      padding: 10px;
+    }
+    #audioPlayer {
+      width: 100%;
+      margin-top: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Text-to-Speech API Test</h1>
+  
+  <div class="container">
+    <h2>Enter Text to Convert:</h2>
+    <textarea id="textInput" placeholder="Type or paste text here...">Hello, this is a test of the text-to-speech API.</textarea>
+    
+    <div class="controls">
+      <select id="languageSelect">
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+        <option value="it">Italian</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="zh">Chinese</option>
+        <option value="ru">Russian</option>
+        <option value="ar">Arabic</option>
+        <option value="hi">Hindi</option>
+      </select>
+      <button id="convertButton">Convert to Speech</button>
+    </div>
+    
+    <div id="audioContainer" class="hidden">
+      <h3>Generated Audio:</h3>
+      <audio id="audioPlayer" controls></audio>
+      <p><a id="downloadLink" href="#" download="speech.wav">Download Audio File</a></p>
+    </div>
+    
+    <div id="status"></div>
+  </div>
+  
+  <script>
+    document.getElementById('convertButton').addEventListener('click', async () => {
+      const text = document.getElementById('textInput').value.trim();
+      const language = document.getElementById('languageSelect').value;
+      const statusElement = document.getElementById('status');
+      
+      if (!text) {
+        statusElement.innerHTML = '<p style="color: red;">Please enter some text</p>';
+        return;
+      }
+      
+      statusElement.innerHTML = '<p>Converting text to speech...</p>';
+      document.getElementById('audioContainer').classList.add('hidden');
+      
+      try {
+        const response = await fetch('http://localhost:3000/api/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text: text,
+            language: language
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server returned error: ${response.status}`);
+        }
+        
+        // Get the audio data as a blob
+        const audioBlob = await response.blob();
+        
+        // Create object URL for the audio
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Set the audio source
+        const audioPlayer = document.getElementById('audioPlayer');
+        audioPlayer.src = audioUrl;
+        
+        // Set the download link
+        const downloadLink = document.getElementById('downloadLink');
+        downloadLink.href = audioUrl;
+        
+        // Show the audio player
+        document.getElementById('audioContainer').classList.remove('hidden');
+        statusElement.innerHTML = '<p style="color: green;">Text converted successfully!</p>';
+        
+        // Play the audio
+        audioPlayer.play();
+      } catch (error) {
+        statusElement.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html> 
